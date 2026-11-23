@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Breathing Timer</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#10161f">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<style>
+:root{
+  --bg:#10161f; --ring:#2a3a4d; --orb:#8fb8c9; --orb-hold:#c9b78f; --orb-out:#9aa7d6;
+  --text:#e8eef3; --muted:#8c9bab; --btn:#e8eef3; --btn-text:#10161f; --chip:#1a2431;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: light){
+  :root:not([data-theme="dark"]){
+    --bg:#eef2f4; --ring:#c5d1da; --orb:#5f93a8; --orb-hold:#a88f55; --orb-out:#6c7ab5;
+    --text:#16212b; --muted:#5c6b78; --btn:#16212b; --btn-text:#eef2f4; --chip:#dde5ea;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#10161f; --ring:#2a3a4d; --orb:#8fb8c9; --orb-hold:#c9b78f; --orb-out:#9aa7d6;
+  --text:#e8eef3; --muted:#8c9bab; --btn:#e8eef3; --btn-text:#10161f; --chip:#1a2431;
+}
+:root[data-theme="light"]{
+  --bg:#eef2f4; --ring:#c5d1da; --orb:#5f93a8; --orb-hold:#a88f55; --orb-out:#6c7ab5;
+  --text:#16212b; --muted:#5c6b78; --btn:#16212b; --btn-text:#eef2f4; --chip:#dde5ea;
+}
+html{min-height:100%;background:var(--bg);scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{
+  margin:0;min-height:100vh;background:var(--bg);color:var(--text);
+  font-family:Georgia,"Iowan Old Style","Times New Roman",serif;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:1.5rem;padding:1.5rem 1.25rem 2rem;text-align:center;
+}
+h1{font-weight:400;font-size:1.1rem;margin:0;color:var(--muted);letter-spacing:.02em}
+.stage{position:relative;width:min(72vw,320px);aspect-ratio:1;display:grid;place-items:center}
+.ring{position:absolute;inset:0;border-radius:50%;border:1.5px solid var(--ring)}
+.orb{position:absolute;inset:0;border-radius:50%;background:var(--orb);opacity:.9;transform:scale(.55);will-change:transform;transition:background-color .6s}
+.orb.hold{background:var(--orb-hold)}
+.orb.out{background:var(--orb-out)}
+.readout{position:relative;display:flex;flex-direction:column;align-items:center;gap:.25rem;color:#10161f}
+.count{font-size:4.2rem;font-weight:400;line-height:1;font-variant-numeric:tabular-nums}
+.label{font-size:1.1rem}
+.sub{min-height:1.4em;color:var(--muted);font-size:.95rem}
+.controls{display:flex;flex-direction:column;align-items:center;gap:1.1rem;width:100%;max-width:420px}
+button,input{font:inherit}
+button{cursor:pointer}
+.go{background:var(--btn);color:var(--btn-text);border:0;border-radius:999px;padding:.8rem 2.6rem;font-size:1.1rem;min-width:9rem}
+.fields{display:grid;grid-template-columns:repeat(5,1fr);gap:.5rem;width:100%}
+.field{display:flex;flex-direction:column;gap:.3rem;color:var(--muted);font-size:.8rem}
+.field input{
+  width:100%;background:var(--chip);color:var(--text);border:1.5px solid transparent;border-radius:12px;
+  padding:.55rem .2rem;text-align:center;font-size:1.05rem;-moz-appearance:textfield;appearance:textfield;
+}
+.field input::-webkit-outer-spin-button,.field input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.field input:focus-visible{outline:2px solid var(--text);outline-offset:2px}
+.presets{display:flex;flex-wrap:wrap;gap:.5rem;justify-content:center}
+.presets button{background:var(--chip);color:var(--text);border:1.5px solid transparent;border-radius:999px;padding:.35rem .9rem;font-size:.9rem}
+.presets button[aria-pressed="true"]{border-color:var(--text)}
+button:disabled,input:disabled{opacity:.45;cursor:default}
+.toggle{background:none;border:0;color:var(--muted);font-size:.9rem;text-decoration:underline;text-underline-offset:3px}
+button:focus-visible{outline:2px solid var(--text);outline-offset:3px}
+</style>
+</head>
+<body>
+<h1>Breathing timer</h1>
+
+<div class="stage" role="timer" aria-live="off">
+  <div class="ring"></div>
+  <div class="orb" id="orb"></div>
+  <div class="readout">
+    <div class="count" id="count">&nbsp;</div>
+    <div class="label" id="label">Ready</div>
+  </div>
+</div>
+
+<div class="sub" id="sub" aria-live="polite"></div>
+
+<div class="controls">
+  <button class="go" id="go">Start</button>
+
+  <div class="fields" id="fields">
+    <label class="field">Inhale<input id="in" type="number" inputmode="numeric" min="1" max="30"></label>
+    <label class="field">Hold<input id="hold" type="number" inputmode="numeric" min="0" max="30"></label>
+    <label class="field">Exhale<input id="out" type="number" inputmode="numeric" min="1" max="30"></label>
+    <label class="field">Rest<input id="rest" type="number" inputmode="numeric" min="0" max="30"></label>
+    <label class="field">Rounds<input id="rounds" type="number" inputmode="numeric" min="1" max="99"></label>
+  </div>
+
+  <div class="presets" id="presets">
+    <button data-p="4,7,8,0">4-7-8</button>
+    <button data-p="4,4,4,4">Box</button>
+    <button data-p="4,2,6,0">Calm 4-2-6</button>
+    <button data-p="5,0,5,0">Even 5-5</button>
+  </div>
+
+  <button class="toggle" id="sound" aria-pressed="false">Sound off</button>
+</div>
+
+<script>
+(function(){
+  var KEY='breathing-timer-settings';
+  var S={in:4,hold:7,out:8,rest:0,rounds:4};
+  try{ var saved=JSON.parse(localStorage.getItem(KEY)||'null'); if(saved) for(var k in S) if(typeof saved[k]==='number') S[k]=saved[k]; }catch(e){}
+
+  var LIMITS={in:[1,30],hold:[0,30],out:[1,30],rest:[0,30],rounds:[1,99]};
+  var orb=document.getElementById('orb'), count=document.getElementById('count'),
+      label=document.getElementById('label'), sub=document.getElementById('sub'),
+      go=document.getElementById('go'), soundBtn=document.getElementById('sound'),
+      presetsEl=document.getElementById('presets'), fieldsEl=document.getElementById('fields');
+  var LO=0.55, PH=[], idx=0, cyc=1, elapsed=0, last=0, raf=0;
+  var running=false, started=false, finished=false, sound=false, ac=null;
+
+  function clamp(k,v){ v=Math.round(Number(v)); if(isNaN(v)) v=LIMITS[k][0]; return Math.min(LIMITS[k][1],Math.max(LIMITS[k][0],v)); }
+  function phases(){
+    return [['in','Breathe in',S.in],['hold','Hold',S.hold],['out','Breathe out',S.out],['rest','Rest',S.rest]]
+      .filter(function(p){return p[2]>0;}).map(function(p){return {k:p[0],n:p[1],s:p[2]};});
+  }
+  function fmt(sec){ var m=Math.floor(sec/60), s=sec%60; return m+':'+(s<10?'0':'')+s; }
+  function total(){ return (S.in+S.hold+S.out+S.rest)*S.rounds; }
+  function save(){ try{ localStorage.setItem(KEY,JSON.stringify(S)); }catch(e){} }
+
+  function note(f0,f1,at,dur,type,vol){
+    var o=ac.createOscillator(), g=ac.createGain(), t=ac.currentTime+at;
+    o.type=type; o.connect(g); g.connect(ac.destination);
+    o.frequency.setValueAtTime(f0,t);
+    if(f1!==f0) o.frequency.linearRampToValueAtTime(f1,t+dur);
+    g.gain.setValueAtTime(0.0001,t);
+    g.gain.linearRampToValueAtTime(vol,t+0.06);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    o.start(t); o.stop(t+dur+0.05);
+  }
+  function tone(kind){
+    if(!sound) return;
+    try{
+      ac=ac||new (window.AudioContext||window.webkitAudioContext)();
+      if(ac.state==='suspended') ac.resume();
+      if(kind==='in') note(330,560,0,0.7,'sine',0.16);
+      else if(kind==='hold'){ note(500,500,0,0.18,'triangle',0.12); note(500,500,0.26,0.18,'triangle',0.12); }
+      else if(kind==='out') note(540,260,0,1.0,'sine',0.16);
+      else if(kind==='rest') note(220,220,0,0.9,'sine',0.12);
+      else if(kind==='done'){ note(392,392,0,0.5,'sine',0.14); note(523,523,0.3,0.5,'sine',0.14); note(659,659,0.6,0.9,'sine',0.14); }
+    }catch(e){}
+  }
+  var wl=null;
+  function keepAwake(on){
+    try{
+      if(on&&navigator.wakeLock){ navigator.wakeLock.request('screen').then(function(l){ wl=l; }).catch(function(){}); }
+      else if(!on&&wl){ wl.release(); wl=null; }
+    }catch(e){}
+  }
+  var cur=null;
+  function stopSound(){
+    if(!cur) return;
+    try{
+      var t=ac.currentTime, c=cur; cur=null;
+      c.g.gain.cancelScheduledValues(t);
+      c.g.gain.setTargetAtTime(0.0001,t,0.04);
+      c.o.forEach(function(x){ x.stop(t+0.3); });
+    }catch(e){}
+  }
+  function startSound(kind,total,done){
+    stopSound();
+    if(!sound) return;
+    try{
+      ac=ac||new (window.AudioContext||window.webkitAudioContext)();
+      if(ac.state==='suspended') ac.resume();
+      var t=ac.currentTime, rem=Math.max(0.3,total-done), p=done/total;
+      var g=ac.createGain(), o=[], vol=0.09;
+      g.connect(ac.destination);
+      var osc=function(type,f0,f1){
+        var x=ac.createOscillator(); x.type=type; x.connect(g);
+        x.frequency.setValueAtTime(f0+(f1-f0)*p,t);
+        if(f1!==f0) x.frequency.linearRampToValueAtTime(f1,t+rem);
+        x.start(t); x.stop(t+rem+0.1); o.push(x);
+      };
+      if(kind==='in'){ osc('sine',220,440); osc('sine',330,660); }
+      else if(kind==='hold'){ osc('sine',330,330); osc('triangle',332,332); vol=0.07; }
+      else if(kind==='out'){ osc('sine',440,220); osc('sine',660,330); }
+      else { osc('sine',165,165); vol=0.06; }
+      g.gain.setValueAtTime(0.0001,t);
+      g.gain.linearRampToValueAtTime(vol,t+0.2);
+      if(rem>0.8){ g.gain.setValueAtTime(vol,t+rem-0.4); g.gain.linearRampToValueAtTime(0.0001,t+rem); }
+      cur={o:o,g:g};
+    }catch(e){}
+  }
+  function cue(){
+    startSound(PH[idx].k,PH[idx].s,0);
+    try{ if(navigator.vibrate) navigator.vibrate(PH[idx].k==='in'?[60]:40); }catch(e){}
+  }
+
+  function render(){
+    var ph=PH[idx], p=Math.min(elapsed/(ph.s*1000),1), sc;
+    if(ph.k==='in') sc=LO+(1-LO)*p;
+    else if(ph.k==='hold') sc=1;
+    else if(ph.k==='out') sc=1-(1-LO)*p;
+    else sc=LO;
+    orb.style.transform='scale('+sc.toFixed(4)+')';
+    orb.className='orb '+(ph.k==='hold'?'hold':(ph.k==='out'?'out':''));
+    count.textContent=Math.max(1,Math.ceil(ph.s-elapsed/1000));
+    label.textContent=ph.n;
+    var left=Math.max(0,total()-Math.floor(((cyc-1)*PH.reduce(function(a,b){return a+b.s;},0))+PH.slice(0,idx).reduce(function(a,b){return a+b.s;},0)+elapsed/1000));
+    sub.textContent='Round '+cyc+' of '+S.rounds+', '+fmt(left)+' left';
+  }
+
+  function tick(now){
+    if(!running) return;
+    var dt=Math.min(now-last,200); last=now; elapsed+=dt;
+    if(elapsed>=PH[idx].s*1000){
+      elapsed-=PH[idx].s*1000; idx++;
+      if(idx>=PH.length){ idx=0; cyc++; if(cyc>S.rounds){ finish(); return; } }
+      cue();
+    }
+    render(); raf=requestAnimationFrame(tick);
+  }
+
+  function idleSub(){ return S.rounds+(S.rounds===1?' round':' rounds')+', '+fmt(total())+' total'; }
+  function setIdle(l,s){ orb.style.transform='scale('+LO+')'; orb.className='orb'; count.innerHTML='&nbsp;'; label.textContent=l; sub.textContent=s; }
+  function lock(on){
+    var i, ins=fieldsEl.querySelectorAll('input'), bs=presetsEl.querySelectorAll('button');
+    for(i=0;i<ins.length;i++) ins[i].disabled=on;
+    for(i=0;i<bs.length;i++) bs[i].disabled=on;
+  }
+  function markPreset(){
+    var cur=[S.in,S.hold,S.out,S.rest].join(','), bs=presetsEl.querySelectorAll('button');
+    for(var i=0;i<bs.length;i++) bs[i].setAttribute('aria-pressed',bs[i].dataset.p===cur);
+  }
+  function fillInputs(){ for(var k in S) document.getElementById(k).value=S[k]; markPreset(); }
+
+  function reset(){
+    stopSound(); keepAwake(false); cancelAnimationFrame(raf); running=false; started=false; finished=false;
+    idx=0; cyc=1; elapsed=0; go.textContent='Start';
+    setIdle('Ready',idleSub()); lock(false);
+  }
+  function finish(){
+    running=false; finished=true; started=false;
+    setIdle('Done',S.rounds+(S.rounds===1?' round':' rounds')+' complete');
+    go.textContent='Start again'; lock(false);
+    stopSound(); keepAwake(false); tone('done'); try{ if(navigator.vibrate) navigator.vibrate([80,60,80]); }catch(e){}
+  }
+
+  go.addEventListener('click',function(){
+    if(running){ running=false; cancelAnimationFrame(raf); stopSound(); keepAwake(false); go.textContent='Resume'; return; }
+    if(finished) reset();
+    if(!started){ PH=phases(); started=true; idx=0; cyc=1; elapsed=0; lock(true); cue(); }
+    else startSound(PH[idx].k,PH[idx].s,elapsed/1000);
+    running=true; keepAwake(true); go.textContent='Pause'; last=performance.now(); render();
+    raf=requestAnimationFrame(tick);
+  });
+
+  fieldsEl.addEventListener('change',function(e){
+    var k=e.target.id; if(!(k in S)) return;
+    S[k]=clamp(k,e.target.value); e.target.value=S[k]; save(); markPreset(); reset();
+  });
+
+  presetsEl.addEventListener('click',function(e){
+    var b=e.target.closest('button[data-p]'); if(!b||b.disabled) return;
+    var v=b.dataset.p.split(',').map(Number);
+    S.in=v[0]; S.hold=v[1]; S.out=v[2]; S.rest=v[3]; save(); fillInputs(); reset();
+  });
+
+  soundBtn.addEventListener('click',function(){
+    sound=!sound; soundBtn.setAttribute('aria-pressed',sound);
+    soundBtn.textContent=sound?'Sound on':'Sound off';
+    if(!sound) stopSound();
+    else if(running) startSound(PH[idx].k,PH[idx].s,elapsed/1000);
+    else tone('in');
+  });
+
+  if('serviceWorker' in navigator && location.protocol.indexOf('http')===0){ navigator.serviceWorker.register('sw.js').catch(function(){}); }
+  fillInputs(); reset();
+})();
+</script>
+</body>
+</html>
